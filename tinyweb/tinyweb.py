@@ -38,11 +38,15 @@ class Route:
                     url += ('?' + urlencode(request.args))
 
                 try:
-                    ctx = json.loads(http.request('GET', url).data)
+                    obj = json.loads(http.request('GET', url).data)
                 except JSONDecodeError:
                     return abort(500)
 
-                return render_template(template, context=ctx)
+                context = {
+                    'params': request.args
+                }
+
+                return render_template(template, obj=obj, context=context)
 
         self.path = path
         self.f = __f
