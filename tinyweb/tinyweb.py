@@ -13,50 +13,62 @@ class Route:
     """
     Object for routes.
 
-    example:
+    example =>
         routes = [
             Route(path='/hello',
                   template='index.html',
-                  ctx_path='https://example.com/api/v1/hello'),
+                  remote='https://example.com/api/v1/hello'),
             ...
         ]
 
-    :param path:     the url path of the page
-    :param template: the name of jinja template
-    :param ctx_path: (optional) the full url of context. If exists, json
-                     response from ctx_path will be pass to template with
-                     name ``context``
+    params =>
+    :param path:       the url path of the page
+    :param template:   the name of jinja template
+    :param remote_url: (optional) the full url of remote context. If exists, 
+                       json response from address will be pass to template with
+                       name ``objects``
+    
+    keyword arguments =>
+    
     """
 
-    def __init__(self, path: str, template: str, ctx_path: str = None):
+    def __init__(self, path: str, template: str, remote_url: str = None):
         def __f():
-            if ctx_path is None:
+            if remote_url is None:
                 return render_template(template)
-            else:
-                url = ctx_path
-                if request.args:
-                    url += ('?' + urlencode(request.args))
 
-                try:
-                    obj = json.loads(http.request('GET', url).data)
-                except JSONDecodeError:
-                    return abort(500)
+            # Build remote request url
+            url = remote_url
+            if request.args:
+                url += ('?' + urlencode(request.args))
 
-                context = {
+            # Make remote request
+            try:
+                req_body = request.get_json(force=True)
+                res = http.request(request.method, url, body=req_body)
+            except JSONDecodeError:
+                return abort(500)
+
+            # Make object for template
+            obj = json.loads(res.data)
+            options = {
+                'objects': obj,
+                'context': {
                     'params': request.args
                 }
+            }
 
-                return render_template(template, obj=obj, context=context)
+            return render_template(template, **options)
 
         self.path = path
         self.f = __f
 
 
-def start(__name__, routes: List[Route], host: str):
+def start(__name__, routes: List[Route], host=None, port=None, debug=None, **kwargs):
     """
-    Run flask application
+    Run tinyweb application
 
-    example:
+    example =>
         if __name__ == '__main__':
             start(__name__, routes, host='127.0.0.1')
     """
@@ -65,4 +77,4 @@ def start(__name__, routes: List[Route], host: str):
     for route in routes:
         app.add_url_rule(route.path, endpoint=route.path, view_func=route.f)
 
-    app.run(host=host)
+    app.run(host=host, port=port, debug=debug, **kwargs)
